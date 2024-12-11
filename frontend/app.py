@@ -7,12 +7,9 @@ make_sidebar()
 
 st.title("Welcome to Text2SQL")
 
-st.write("Please log in with a Snowflake role to continue")
-
 role_name = st.text_input(
-    label="Role Name",
+    label="Please key in a Snowflake role to login",
     placeholder="Snowflake Role Name",
-    label_visibility = 'collapsed'
     )
 
 backend_home_url = 'http://127.0.0.1:8000'
