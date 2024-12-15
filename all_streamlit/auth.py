@@ -37,6 +37,7 @@ def login():
             
         })
         r = httpx.post(url=token_url,data=param)
+        print(r.json)
         if r.status_code == 200:
             # print(True)/
             st.session_state["logged_in"]=True
