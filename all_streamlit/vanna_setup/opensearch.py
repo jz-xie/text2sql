@@ -5,7 +5,7 @@ from streamlit.runtime.caching import cache_data
 import logging
 from vanna.base import VannaBase
 import uuid
-
+import pandas as pd
 from typing import TypedDict
 
 
@@ -35,24 +35,29 @@ class OpenSearch_VectorStore(VannaBase):
         self.ddl_index = ddl_index
         self.question_sql_index = question_sql_index
 
-        host = config.get("host", "localhost")
-        port = config.get("port", "9200")
-        username = config.get("username")
-        password = config.get("host")
+        client = config.get("client", None)
+        if isinstance(client, OpenSearch):
+            # allow providing client directly
+            self.opensearch_client = client
+        else:
+            host = config.get("host", "localhost")
+            port = config.get("port", "9200")
+            username = config.get("username", "admin")
+            password = config.get("password")
 
-        self.client = OpenSearch(
-            hosts=[{"host": host, "port": port}],
-            http_auth=(username, password),
-            http_compress=True,  # enables gzip compression for request bodies
-            use_ssl=True,
-            verify_certs=False,
-            ssl_assert_hostname=False,
-            ssl_show_warn=False,
-        )
+            self.opensearch_client = OpenSearch(
+                hosts=[{"host": host, "port": port}],
+                http_auth=(username, password),
+                http_compress=True,  # enables gzip compression for request bodies
+                use_ssl=True,
+                verify_certs=False,
+                ssl_assert_hostname=False,
+                ssl_show_warn=False,
+            )
 
         # Create the indices if they don't exist
         for index in [self.doc_index, self.ddl_index, self.question_sql_index]:
-            index.save(using=self.client)
+            index.save(using=self.opensearch_client)
 
         self.n_results = config.get("n_results", 10)
 
@@ -72,7 +77,7 @@ class OpenSearch_VectorStore(VannaBase):
             body_list.append(f"{str(action)}\n{str(ddl_dict)}")
 
         body_str = "\n".join(body_list)
-        response = self.client.bulk(body=body_str)
+        response = self.opensearch_client.bulk(body=body_str)
 
         return response["_id"]
 
@@ -85,7 +90,7 @@ class OpenSearch_VectorStore(VannaBase):
             body_list.append(f"{str(action)}\n{str(doc)}")
 
         body_str = "\n".join(body_list)
-        response = self.client.bulk(body=body_str)
+        response = self.opensearch_client.bulk(body=body_str)
 
         return response["_id"]
 
@@ -99,7 +104,7 @@ class OpenSearch_VectorStore(VannaBase):
             body_list.append(f"{str(action)}\n{str(pair)}")
 
         body_str = "\n".join(body_list)
-        response = self.client.bulk(body=body_str)
+        response = self.opensearch_client.bulk(body=body_str)
 
         return response["_id"]
 
@@ -107,19 +112,19 @@ class OpenSearch_VectorStore(VannaBase):
         # Assume you have some vector search mechanism associated with your data
         query = {"query": {"match": {"ddl": question}}, "size": self.n_results}
         print(query)
-        response = self.client.search(index=self.ddl_index, body=query, **kwargs)
+        response = self.opensearch_client.search(index=self.ddl_index, body=query, **kwargs)
         return [hit["_source"]["ddl"] for hit in response["hits"]["hits"]]
 
     def get_related_documentation(self, question: str, **kwargs) -> list[str]:
         query = {"query": {"match": {"doc": question}}, "size": self.n_results}
         print(query)
-        response = self.client.search(index=self.doc_index, body=query, **kwargs)
+        response = self.opensearch_client.search(index=self.doc_index, body=query, **kwargs)
         return [hit["_source"]["doc"] for hit in response["hits"]["hits"]]
 
     def get_similar_question_sql(self, question: str, **kwargs) -> list[str]:
         query = {"query": {"match": {"question": question}}, "size": self.n_results}
         print(query)
-        response = self.client.search(
+        response = self.opensearch_client.search(
             index=self.question_sql_index, body=query, **kwargs
         )
         return [
@@ -127,15 +132,56 @@ class OpenSearch_VectorStore(VannaBase):
             for hit in response["hits"]["hits"]
         ]
 
+    def get_training_data(self, **kwargs) -> pd.DataFrame:
+        # This will be a simple example pulling some data from an index
+        data = []
+        for index in [self.doc_index, self.doc_index, self.question_sql_index]:
+            response = self.opensearch_client.search(
+                index=index, body={"query": {"match_all": {}}}, size=10
+            )
+            match self.doc_index._name:
+                case "question_sql_index":
+                    content = "sql"
+                case "doc":
+                    content = "doc"
+                case "ddl":
+                    content = "ddl"
+            for hit in response["hits"]["hits"]:
+                data.append(
+                    {
+                        "id": hit["_id"],
+                        "training_data_type": index._name,
+                        "question": "" if not content == "sql" else hit.get("_source", {}).get("question", ""),
+                        "content": hit["_source"][content],
+                    }
+                )
+                
+        return pd.DataFrame(data)
+
+    def remove_training_data(self, id: str, **kwargs) -> bool:
+        try:
+            if id.endswith("-sql"):
+                self.opensearch_client.delete(index=self.question_sql_index, id=id)
+                return True
+            elif id.endswith("-ddl"):
+                self.opensearch_client.delete(index=self.ddl_index, id=id, **kwargs)
+                return True
+            elif id.endswith("-doc"):
+                self.opensearch_client.delete(index=self.doc_index, id=id, **kwargs)
+                return True
+            else:
+                return False
+        except Exception as e:
+            print("Error deleting training dataError deleting training data: ", e)
+            return False
+
+    def generate_embedding(self, data: str, **kwargs) -> list[float]:
+        # opensearch doesn't need to generate embeddings
+        pass
+
 
 class OpenSearchConnection(BaseConnection[OpenSearch]):
     def _connect(self, host: str, port: int, user: str, password: str) -> OpenSearch:
-        secrets = self._secrets.to_dict()
-        secrets["localhost"]
-        secrets["port"]
-        secrets["user"]
-        secrets["password"]
-
         client = OpenSearch(
             hosts=[{"host": host, "port": port}],
             http_auth=(user, password),
@@ -180,14 +226,3 @@ class OpenSearchConnection(BaseConnection[OpenSearch]):
 
         return _query(index=index, query=query)
 
-
-# # Create the client with SSL/TLS and hostname verification disabled.
-# client = OpenSearch(
-#     hosts=[{"host": "localhost", "port": 9200}],
-#     http_auth=("admin", "PasASDWAW1111!"),
-#     http_compress=True,  # enables gzip compression for request bodies
-#     use_ssl=True,
-#     verify_certs=False,
-#     ssl_assert_hostname=False,
-#     ssl_show_warn=False,
-# )
