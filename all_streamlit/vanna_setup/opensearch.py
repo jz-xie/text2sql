@@ -7,6 +7,8 @@ from vanna.base import VannaBase
 import uuid
 import pandas as pd
 from typing import TypedDict
+from utils import extract_table_metadata
+import hashlib
 
 
 class DDL(TypedDict):
@@ -65,67 +67,67 @@ class OpenSearch_VectorStore(VannaBase):
         body_list = []
 
         for ddl in ddl_list:
-            id = str(uuid.uuid4()) + "-ddl"
+            id = hashlib.sha256(bytes(str(ddl), encoding="utf-8")).hexdigest() + "-ddl"
             action = {"index": {"_index": self.ddl_index._name, "_id": id}}
 
-            table_metadata = VannaBase.extract_table_metadata(ddl)
+            table_metadata = extract_table_metadata(ddl)
             ddl_dict = {
                 "schema": table_metadata.schema,
                 "table_name": table_metadata.table_name,
-                "ddl": ddl["ddl"],
+                "ddl": ddl,
             }
-            body_list.append(f"{str(action)}\n{str(ddl_dict)}")
+            body_list.append(action)
+            body_list.append(ddl_dict)
 
-        body_str = "\n".join(body_list)
-        response = self.opensearch_client.bulk(body=body_str)
-
-        return response["_id"]
+        response = self.opensearch_client.bulk(body=body_list)
+        return response
 
     def add_documentation(self, doc_list: list[Doc], **kwargs) -> str:
         body_list = []
 
         for doc in doc_list:
-            id = str(uuid.uuid4()) + "-doc"
+            id = hashlib.sha256(bytes(str(doc), encoding="utf-8")).hexdigest() + "-doc"
             action = {"index": {"_index": self.doc_index._name, "_id": id}}
-            body_list.append(f"{str(action)}\n{str(doc)}")
+            body_list.append(action)
+            body_list.append(doc)
 
-        body_str = "\n".join(body_list)
-        response = self.opensearch_client.bulk(body=body_str)
+        response = self.opensearch_client.bulk(body=body_list)
 
-        return response["_id"]
+        return response
 
     def add_question_sql(self, pairs: list[QuestionSQL], **kwargs) -> str:
         # Assuming you have a Questions and SQL index in your OpenSearch
         body_list = []
 
         for pair in pairs:
-            id = str(uuid.uuid4()) + "-sql"
+            id = hashlib.sha256(bytes(str(pair), encoding="utf-8")).hexdigest() + "-sql"
             action = {"index": {"_index": self.doc_index._name, "_id": id}}
-            body_list.append(f"{str(action)}\n{str(pair)}")
+            body_list.append(action)
+            body_list.append(pair)
 
-        body_str = "\n".join(body_list)
-        response = self.opensearch_client.bulk(body=body_str)
+        response = self.opensearch_client.bulk(body=body_list)
 
-        return response["_id"]
+        return response
 
-    def get_related_ddl(self, question: str, **kwargs) -> list[str]:
+    def get_related_ddl(self, question: str) -> list[str]:
         # Assume you have some vector search mechanism associated with your data
         query = {"query": {"match": {"ddl": question}}, "size": self.n_results}
         print(query)
-        response = self.opensearch_client.search(index=self.ddl_index, body=query, **kwargs)
+        response = self.opensearch_client.search(index=self.ddl_index._name, body=query)
         return [hit["_source"]["ddl"] for hit in response["hits"]["hits"]]
 
-    def get_related_documentation(self, question: str, **kwargs) -> list[str]:
+    def get_related_documentation(self, question: str) -> list[str]:
         query = {"query": {"match": {"doc": question}}, "size": self.n_results}
         print(query)
-        response = self.opensearch_client.search(index=self.doc_index, body=query, **kwargs)
+        response = self.opensearch_client.search(index=self.doc_index._name, body=query)
         return [hit["_source"]["doc"] for hit in response["hits"]["hits"]]
 
-    def get_similar_question_sql(self, question: str, **kwargs) -> list[str]:
+    def get_similar_question_sql(self, question: str) -> list[str]:
         query = {"query": {"match": {"question": question}}, "size": self.n_results}
         print(query)
+        print(self.question_sql_index._name)
         response = self.opensearch_client.search(
-            index=self.question_sql_index, body=query, **kwargs
+            index=self.question_sql_index._name, body=query
         )
         return [
             (hit["_source"]["question"], hit["_source"]["sql"])
@@ -151,11 +153,13 @@ class OpenSearch_VectorStore(VannaBase):
                     {
                         "id": hit["_id"],
                         "training_data_type": index._name,
-                        "question": "" if not content == "sql" else hit.get("_source", {}).get("question", ""),
+                        "question": ""
+                        if not content == "sql"
+                        else hit.get("_source", {}).get("question", ""),
                         "content": hit["_source"][content],
                     }
                 )
-                
+
         return pd.DataFrame(data)
 
     def remove_training_data(self, id: str, **kwargs) -> bool:
@@ -225,4 +229,3 @@ class OpenSearchConnection(BaseConnection[OpenSearch]):
             response
 
         return _query(index=index, query=query)
-

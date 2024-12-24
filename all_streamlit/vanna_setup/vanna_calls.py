@@ -2,8 +2,8 @@ import streamlit as st
 from vanna.ollama import Ollama
 from vanna.chromadb import ChromaDB_VectorStore
 from vanna_setup.opensearch import OpenSearch_VectorStore
+from vanna_setup.data_prep import generate_question_sql, generate_ddl
 from opensearchpy import OpenSearch
-
 # class MyVanna(ChromaDB_VectorStore, Ollama):
 #     def __init__(self, config=None):
 #         ChromaDB_VectorStore.__init__(self, config=config)
@@ -15,6 +15,11 @@ class MyVanna(OpenSearch_VectorStore, Ollama):
         OpenSearch_VectorStore.__init__(self, config=config)
         Ollama.__init__(self, config=config)
 
+def prepare_data(vn: MyVanna):
+    ddls = generate_ddl()
+    vn.add_ddl(ddl_list=ddls)
+    qn_sql_pairs = generate_question_sql()
+    vn.add_question_sql(pairs=qn_sql_pairs)
 
 @st.cache_resource(ttl=3600)
 def setup_vanna():
@@ -34,6 +39,7 @@ def setup_vanna():
     vn = MyVanna(config={"model": "llama3.2:1b", "client": opensearch_client})
     # vn = VannaDefault(api_key=st.secrets.get("VANNA_API_KEY"), model='chinook')
     # vn.connect_to_sqlite("https://vanna.ai/Chinook.sqlite")
+    prepare_data(vn)
     vn.connect_to_postgres(
         host="localhost",
         dbname="BIRD",
