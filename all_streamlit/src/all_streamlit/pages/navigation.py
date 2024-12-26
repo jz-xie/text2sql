@@ -2,9 +2,7 @@ import streamlit as st
 from time import sleep
 from streamlit.runtime.scriptrunner import get_script_run_ctx
 from streamlit.source_util import get_pages
-import pathlib
 
-APP_DIR = pathlib.Path(__file__).parent.resolve()
 
 def get_current_page_name():
     ctx = get_script_run_ctx()
@@ -34,11 +32,11 @@ def make_sidebar():
         elif get_current_page_name() != "auth":
             # If anyone tries to access a secret page without being logged in,
             # redirect them to the login page
-            st.switch_page("auth.py")
+            st.switch_page("pages/auth.py")
 
 
 def logout():
     st.session_state.logged_in = False
     st.info("Logged out successfully!")
     sleep(0.5)
-    st.switch_page("auth.py")
+    st.switch_page("pages/auth.py")

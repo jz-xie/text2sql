@@ -1,20 +1,7 @@
 import streamlit as st
-from time import sleep
 import httpx
-from navigation import make_sidebar
 import urllib
-
-make_sidebar()
-
-auth_url="http://localhost:9000/application/o/authorize/"
-token_url = "http://localhost:9000/application/o/token/"
-
-st.title("Welcome to Text2SQL")
-
-role_name = st.text_input(
-    label="Please key in a Snowflake role to login",
-    placeholder="Snowflake Role Name",
-    )
+from pages.navigation import make_sidebar
 
 def login():
     param = {
@@ -45,4 +32,15 @@ def login():
     
 
 if __name__ == "__main__":
+    make_sidebar()
+
+    auth_url="http://localhost:9000/application/o/authorize/"
+    token_url = "http://localhost:9000/application/o/token/"
+
+    st.title("Welcome to Text2SQL")
+
+    role_name = st.text_input(
+        label="Please key in a Snowflake role to login",
+        placeholder="Snowflake Role Name",
+        )
     login()

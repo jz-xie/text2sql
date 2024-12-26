@@ -6,30 +6,16 @@ import logging
 from vanna.base import VannaBase
 import uuid
 import pandas as pd
-from typing import TypedDict
 from utils import extract_table_metadata
 import hashlib
-
-
-class DDL(TypedDict):
-    ddl: str
-
-
-class Doc(TypedDict):
-    doc: str
-
-
-class QuestionSQL(TypedDict):
-    question: str
-    sql: str
-
+from all_streamlit.src.utils.data_prep import DDL, QuestionSQL, Doc
 
 class OpenSearch_VectorStore(VannaBase):
     def __init__(self, config: dict = {}):
         VannaBase.__init__(self, config=config)
 
         doc_index = Index("doc_index")
-        doc_index.settings(number_of_shards=6, number_of_replicas=2)
+        doc_index.settings(number_of_shards=6, number_of_replicas=2, knn=True)
         ddl_index: Index = doc_index.clone(name="ddl_index")
         question_sql_index: Index = doc_index.clone(name="question_sql_index")
 
@@ -71,10 +57,9 @@ class OpenSearch_VectorStore(VannaBase):
             action = {"index": {"_index": self.ddl_index._name, "_id": id}}
 
             table_metadata = extract_table_metadata(ddl)
-            ddl_dict = {
+            ddl_dict = ddl | {
                 "schema": table_metadata.schema,
                 "table_name": table_metadata.table_name,
-                "ddl": ddl,
             }
             body_list.append(action)
             body_list.append(ddl_dict)
