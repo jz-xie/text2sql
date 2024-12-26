@@ -16,23 +16,6 @@ class OpenSearch_VectorStore(VannaBase):
     def __init__(self, config: dict = {}):
         VannaBase.__init__(self, config=config)
 
-        doc_index = Index("doc_index")
-        doc_index.settings(number_of_shards=6, number_of_replicas=1, knn=True)
-        doc_index.mapping(
-            {
-                "properties": {
-                    i: j.metadata["opensearch_properties"]
-                    for i, j in DDL.__dataclass_fields__.items()
-                }
-            }
-        )
-        ddl_index: Index = doc_index.clone(name="ddl_index")
-        question_sql_index: Index = doc_index.clone(name="question_sql_index")
-
-        self.doc_index = doc_index
-        self.ddl_index = ddl_index
-        self.question_sql_index = question_sql_index
-
         client = config.get("client", None)
         if isinstance(client, OpenSearch):
             # allow providing client directly
@@ -53,34 +36,50 @@ class OpenSearch_VectorStore(VannaBase):
                 ssl_show_warn=False,
             )
 
-        # Create the indices if they don't exist
-        for index in [self.doc_index, self.ddl_index, self.question_sql_index]:
-            index.save(using=self.opensearch_client)
+        indices = [Doc, DDL, QuestionSQL]
+        for index in indices:
+            if not self.opensearch_client.exists(index=index.opensearch_index_name):
+                create_index(
+                    client=self.opensearch_client,
+                    index_name=index.opensearch_index_name,
+                    index_target=index,
+                )
+
+        self.doc_index_name = Doc.opensearch_index_name
+        self.ddl_index_name = DDL.opensearch_index_name
+        self.question_sql_index_name = QuestionSQL.opensearch_index_name
 
         self.n_results = config.get("n_results", 10)
 
     def add_ddl(self, ddl_list: list[dict]) -> str:
-
         for ddl in ddl_list:
             table_metadata = extract_table_metadata(ddl)
-            ddl.update({
-                "schema": table_metadata.schema,
-                "table_name": table_metadata.table_name,
-            })
+            ddl.update(
+                {
+                    "schema": table_metadata.schema,
+                    "table_name": table_metadata.table_name,
+                }
+            )
 
-        response = self.opensearch_client.bulk(body=ddl_list)
+        response = index_dococument(
+            client=self.opensearch_client,
+            index_name=self.ddl_index_name,
+            doc_list=ddl_list,
+        )
         return response
 
     def add_documentation(self, doc_list: list[dict]) -> str:
         response = index_dococument(
-            client=self.opensearch_client, index_name="doc_index", doc_list=doc_list
+            client=self.opensearch_client,
+            index_name=self.doc_index_name,
+            doc_list=doc_list,
         )
         return response
 
     def add_question_sql(self, pairs: list[dict]) -> str:
         response = index_dococument(
             client=self.opensearch_client,
-            index_name="question_sql_index",
+            index_name=self.question_sql_index_name,
             doc_list=pairs,
         )
         return response
@@ -89,21 +88,21 @@ class OpenSearch_VectorStore(VannaBase):
         # Assume you have some vector search mechanism associated with your data
         query = {"query": {"match": {"ddl": question}}, "size": self.n_results}
         print(query)
-        response = self.opensearch_client.search(index=self.ddl_index._name, body=query)
+        response = self.opensearch_client.search(index=self.ddl_index_name, body=query)
         return [hit["_source"]["ddl"] for hit in response["hits"]["hits"]]
 
     def get_related_documentation(self, question: str) -> list[str]:
         query = {"query": {"match": {"doc": question}}, "size": self.n_results}
         print(query)
-        response = self.opensearch_client.search(index=self.doc_index._name, body=query)
+        response = self.opensearch_client.search(index=self.doc_index_name, body=query)
         return [hit["_source"]["doc"] for hit in response["hits"]["hits"]]
 
     def get_similar_question_sql(self, question: str) -> list[str]:
         query = {"query": {"match": {"question": question}}, "size": self.n_results}
         print(query)
-        print(self.question_sql_index._name)
+        print(self.question_sql_index_name)
         response = self.opensearch_client.search(
-            index=self.question_sql_index._name, body=query
+            index=self.question_sql_index_name, body=query
         )
         return [
             (hit["_source"]["question"], hit["_source"]["sql"])
@@ -113,46 +112,35 @@ class OpenSearch_VectorStore(VannaBase):
     def get_training_data(self, **kwargs) -> pd.DataFrame:
         # This will be a simple example pulling some data from an index
         data = []
-        for index in [self.doc_index, self.doc_index, self.question_sql_index]:
-            response = self.opensearch_client.search(
-                index=index, body={"query": {"match_all": {}}}, size=10
-            )
-            match self.doc_index._name:
-                case "question_sql_index":
-                    content = "sql"
-                case "doc":
-                    content = "doc"
-                case "ddl":
-                    content = "ddl"
-            for hit in response["hits"]["hits"]:
-                data.append(
-                    {
-                        "id": hit["_id"],
-                        "training_data_type": index._name,
-                        "question": ""
-                        if not content == "sql"
-                        else hit.get("_source", {}).get("question", ""),
-                        "content": hit["_source"][content],
-                    }
-                )
+        search_body = []
+        for index_name in [
+            self.doc_index_name,
+            self.ddl_index_name,
+            self.question_sql_index_name,
+        ]:
+            search_body += [
+                {"index": index_name},
+                {"query": {"match_all": {}}, "size": 10},
+            ]
+
+        response = self.opensearch_client.msearch(body=search_body)
+        data = [
+            {
+                "id": hit["_id"],
+                "index": hit["_index"],
+                "source": hit["_source"],
+            }
+            for hit in response["hits"]["hits"]
+        ]
 
         return pd.DataFrame(data)
 
-    def remove_training_data(self, id: str, **kwargs) -> bool:
+    def remove_training_data(self, index:str, id: str, **kwargs) -> bool:
         try:
-            if id.endswith("-sql"):
-                self.opensearch_client.delete(index=self.question_sql_index, id=id)
-                return True
-            elif id.endswith("-ddl"):
-                self.opensearch_client.delete(index=self.ddl_index, id=id, **kwargs)
-                return True
-            elif id.endswith("-doc"):
-                self.opensearch_client.delete(index=self.doc_index, id=id, **kwargs)
-                return True
-            else:
-                return False
+            self.opensearch_client.delete(index=index, id=id)
+            return True
         except Exception as e:
-            print("Error deleting training dataError deleting training data: ", e)
+            Exception("Error deleting training dataError deleting training data: ", e)
             return False
 
     def generate_embedding(self, data: str, **kwargs) -> list[float]:
@@ -171,4 +159,23 @@ def index_dococument(client: OpenSearch, index_name: str, doc_list: list[dict]):
 
     response = client.bulk(body=body_list)
 
+    return response
+
+
+def create_index(client: OpenSearch, index_name: str, index_target):
+    index_name
+    index_body = {
+        "settings": {
+            "number_of_shards": 2,
+            "number_of_replicas": 1,
+            "index": {"knn": True},
+        },
+        "mappings": {
+            "properties": {
+                i: j.metadata["opensearch_properties"]
+                for i, j in index_target.__dataclass_fields__.items()
+            }
+        },
+    }
+    response = client.indices.create(index_name, body=index_body)
     return response

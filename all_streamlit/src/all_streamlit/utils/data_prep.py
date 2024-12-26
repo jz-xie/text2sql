@@ -13,18 +13,24 @@ opensearch_property_type_vector = {
 
 @dataclass
 class DDL:
+    opensearch_index_name = "ddl"
+    
     ddl: str = field(metadata=opensearch_property_type_text)
     ddl_emb: Tensor = field(metadata=opensearch_property_type_vector)
-
+    
 
 @dataclass
 class Doc:
+    opensearch_index_name = "doc"
+    
     doc: str = field(metadata=opensearch_property_type_text)
     doc_emb: Tensor = field(metadata=opensearch_property_type_vector)
 
 
 @dataclass
 class QuestionSQL:
+    opensearch_index_name = "question_sql"
+    
     question: str = field(metadata=opensearch_property_type_text)
     question_emb: Tensor = field(metadata=opensearch_property_type_vector)
     sql: str = field(metadata=opensearch_property_type_text)
