@@ -1,14 +1,15 @@
-from opensearchpy import OpenSearch, Index
-from streamlit.connections import BaseConnection
-from typing import Optional, Any
-from streamlit.runtime.caching import cache_data
-import logging
-from vanna.base import VannaBase
-import uuid
-import pandas as pd
-from utils.utils import extract_table_metadata
 import hashlib
-from utils.data_prep import DDL, QuestionSQL, Doc
+import logging
+import uuid
+from typing import Any, Optional
+
+import pandas as pd
+from opensearchpy import Index, OpenSearch
+from streamlit.connections import BaseConnection
+from streamlit.runtime.caching import cache_data
+from utils.data_prep import DDL, Doc, QuestionSQL
+from utils.utils import extract_table_metadata
+from vanna.base import VannaBase
 
 
 class OpenSearch_VectorStore(VannaBase):
@@ -19,7 +20,10 @@ class OpenSearch_VectorStore(VannaBase):
         doc_index.settings(number_of_shards=6, number_of_replicas=1, knn=True)
         doc_index.mapping(
             {
-                "properties": {i: j.metadata["opensearch_properties"] for i,j in DDL.__dataclass_fields__.items()}
+                "properties": {
+                    i: j.metadata["opensearch_properties"]
+                    for i, j in DDL.__dataclass_fields__.items()
+                }
             }
         )
         ddl_index: Index = doc_index.clone(name="ddl_index")
@@ -55,50 +59,30 @@ class OpenSearch_VectorStore(VannaBase):
 
         self.n_results = config.get("n_results", 10)
 
-    def add_ddl(self, ddl_list: list[DDL], **kwargs) -> str:
-        body_list = []
+    def add_ddl(self, ddl_list: list[dict]) -> str:
 
         for ddl in ddl_list:
-            id = hashlib.sha256(bytes(str(ddl), encoding="utf-8")).hexdigest() + "-ddl"
-            action = {"index": {"_index": self.ddl_index._name, "_id": id}}
-            print(ddl)
-            raise
             table_metadata = extract_table_metadata(ddl)
-            ddl_dict = ddl | {
+            ddl.update({
                 "schema": table_metadata.schema,
                 "table_name": table_metadata.table_name,
-            }
-            body_list.append(action)
-            body_list.append(ddl_dict)
+            })
 
-        response = self.opensearch_client.bulk(body=body_list)
+        response = self.opensearch_client.bulk(body=ddl_list)
         return response
 
-    def add_documentation(self, doc_list: list[Doc], **kwargs) -> str:
-        body_list = []
-
-        for doc in doc_list:
-            id = hashlib.sha256(bytes(str(doc), encoding="utf-8")).hexdigest() + "-doc"
-            action = {"index": {"_index": self.doc_index._name, "_id": id}}
-            body_list.append(action)
-            body_list.append(doc)
-
-        response = self.opensearch_client.bulk(body=body_list)
-
+    def add_documentation(self, doc_list: list[dict]) -> str:
+        response = index_dococument(
+            client=self.opensearch_client, index_name="doc_index", doc_list=doc_list
+        )
         return response
 
-    def add_question_sql(self, pairs: list[QuestionSQL], **kwargs) -> str:
-        # Assuming you have a Questions and SQL index in your OpenSearch
-        body_list = []
-
-        for pair in pairs:
-            id = hashlib.sha256(bytes(str(pair), encoding="utf-8")).hexdigest() + "-sql"
-            action = {"index": {"_index": self.doc_index._name, "_id": id}}
-            body_list.append(action)
-            body_list.append(pair)
-
-        response = self.opensearch_client.bulk(body=body_list)
-
+    def add_question_sql(self, pairs: list[dict]) -> str:
+        response = index_dococument(
+            client=self.opensearch_client,
+            index_name="question_sql_index",
+            doc_list=pairs,
+        )
         return response
 
     def get_related_ddl(self, question: str) -> list[str]:
@@ -176,48 +160,15 @@ class OpenSearch_VectorStore(VannaBase):
         pass
 
 
-class OpenSearchConnection(BaseConnection[OpenSearch]):
-    def _connect(self, host: str, port: int, user: str, password: str) -> OpenSearch:
-        client = OpenSearch(
-            hosts=[{"host": host, "port": port}],
-            http_auth=(user, password),
-            http_compress=True,  # enables gzip compression for request bodies
-            use_ssl=True,
-            verify_certs=False,
-            ssl_assert_hostname=False,
-            ssl_show_warn=False,
-        )
-        return client
+def index_dococument(client: OpenSearch, index_name: str, doc_list: list[dict]):
+    body_list = []
 
-    def query(
-        self,
-        *,
-        index: str,
-        query: Optional[dict[str, Any]] = None,
-        ttl: Optional[int] = None,
-    ) -> dict:
-        """
-        Queries an Opensearch index and returns the results as dict.
+    for doc in doc_list:
+        id = hashlib.sha256(bytes(str(doc), encoding="utf-8")).hexdigest()
+        action = {"index": {"_index": index_name, "_id": id}}
+        body_list.append(action)
+        body_list.append(doc)
 
-        Parameters
-        ----------
-        index: str
-            Opensearch index to query.
+    response = client.bulk(body=body_list)
 
-        query: Dict[Any]
-            Opensearch query to filter data in the index. Defaults to None, all data from the index gets fetched.
-
-        ttl: int
-            How long to keep data cached in seconds. Defaults to never
-
-        Returns
-        -------
-        dict
-        """
-
-        @cache_data(show_spinner=True, ttl=ttl)
-        def _query(index, query):
-            response = self._instance.search(body=query, index=index)
-            response
-
-        return _query(index=index, query=query)
+    return response

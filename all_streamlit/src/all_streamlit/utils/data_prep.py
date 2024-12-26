@@ -2,7 +2,7 @@ import json
 from sentence_transformers import SentenceTransformer
 from pathlib import Path
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from torch import Tensor
 
 opensearch_property_type_text = {"opensearch_properties": {"type": "text"}}
@@ -17,11 +17,13 @@ class DDL:
     ddl_emb: Tensor = field(metadata=opensearch_property_type_vector)
 
 
+@dataclass
 class Doc:
     doc: str = field(metadata=opensearch_property_type_text)
     doc_emb: Tensor = field(metadata=opensearch_property_type_vector)
 
 
+@dataclass
 class QuestionSQL:
     question: str = field(metadata=opensearch_property_type_text)
     question_emb: Tensor = field(metadata=opensearch_property_type_vector)
@@ -68,7 +70,7 @@ def generate_ddl(db_name: str = "superhero") -> list[DDL]:
 
     ddl_embeddings = generate_embeddings(ddl_statements)
     output = [
-        {"ddl": ddl, "ddl_emb": ddl_emb}
+        DDL(ddl=ddl, ddl_emb=ddl_emb)
         for ddl, ddl_emb in zip(ddl_statements, ddl_embeddings)
     ]
 
@@ -86,16 +88,16 @@ def generate_question_sql(db_name: str = "superhero") -> list[QuestionSQL]:
     sql_emb_list = generate_embeddings(sql_list)
 
     output = [
-        {"question": a, "question_emb": b, "sql": c, "sql_emb": d}
+        asdict(QuestionSQL(question=a, question_emb=b, sql=c, sql_emb=d))
         for a, b, c, d in zip(questions, question_emb_list, sql_list, sql_emb_list)
     ]
 
     return output
 
 
-def generate_embeddings(texts: list[str]):
+def generate_embeddings(texts: list[str]) -> list:
     model = SentenceTransformer(
         model_name_or_path="sentence-transformers/all-MiniLM-L6-v2"
     )
-    output = model.encode(texts)
+    output = model.encode(texts).tolist()
     return output
