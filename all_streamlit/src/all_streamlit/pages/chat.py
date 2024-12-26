@@ -1,5 +1,4 @@
 import logging
-import time
 import streamlit as st
 from vanna_setup.vanna_calls import (
     generate_questions_cached,

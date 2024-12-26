@@ -2,25 +2,31 @@ import json
 from sentence_transformers import SentenceTransformer
 from pathlib import Path
 
-from typing import TypedDict
+from dataclasses import dataclass, field
 from torch import Tensor
 
-
-class DDL(TypedDict):
-    ddl: str
-    ddl_emb: Tensor
-
-
-class Doc(TypedDict):
-    doc: str
-    doc_emb: Tensor
+opensearch_property_type_text = {"opensearch_properties": {"type": "text"}}
+opensearch_property_type_vector = {
+    "opensearch_properties": {"type": "knn_vector", "dimension": 384}
+}
 
 
-class QuestionSQL(TypedDict):
-    question: str
-    question_emb: Tensor
-    sql: str
-    sql_emb: Tensor
+@dataclass
+class DDL:
+    ddl: str = field(metadata=opensearch_property_type_text)
+    ddl_emb: Tensor = field(metadata=opensearch_property_type_vector)
+
+
+class Doc:
+    doc: str = field(metadata=opensearch_property_type_text)
+    doc_emb: Tensor = field(metadata=opensearch_property_type_vector)
+
+
+class QuestionSQL:
+    question: str = field(metadata=opensearch_property_type_text)
+    question_emb: Tensor = field(metadata=opensearch_property_type_vector)
+    sql: str = field(metadata=opensearch_property_type_text)
+    sql_emb: Tensor = field(metadata=opensearch_property_type_vector)
 
 
 def generate_ddl(db_name: str = "superhero") -> list[DDL]:

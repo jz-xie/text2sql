@@ -2,7 +2,7 @@ import streamlit as st
 from vanna.ollama import Ollama
 from vanna.chromadb import ChromaDB_VectorStore
 from vanna_setup.opensearch import OpenSearch_VectorStore
-from vanna_setup.data_prep import generate_question_sql, generate_ddl
+from utils.data_prep import generate_question_sql, generate_ddl
 from opensearchpy import OpenSearch
 # class MyVanna(ChromaDB_VectorStore, Ollama):
 #     def __init__(self, config=None):

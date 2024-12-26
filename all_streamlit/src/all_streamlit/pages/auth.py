@@ -1,7 +1,7 @@
 import streamlit as st
 import httpx
 import urllib
-from pages.navigation import make_sidebar
+from utils.navigation import make_sidebar
 
 def login():
     param = {
