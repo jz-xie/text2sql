@@ -14,15 +14,15 @@ opensearch_property_type_vector = {
 @dataclass
 class DDL:
     opensearch_index_name = "ddl"
-    
+
     ddl: str = field(metadata=opensearch_property_type_text)
     ddl_emb: Tensor = field(metadata=opensearch_property_type_vector)
-    
+
 
 @dataclass
 class Doc:
     opensearch_index_name = "doc"
-    
+
     doc: str = field(metadata=opensearch_property_type_text)
     doc_emb: Tensor = field(metadata=opensearch_property_type_vector)
 
@@ -30,7 +30,7 @@ class Doc:
 @dataclass
 class QuestionSQL:
     opensearch_index_name = "question_sql"
-    
+
     question: str = field(metadata=opensearch_property_type_text)
     question_emb: Tensor = field(metadata=opensearch_property_type_vector)
     sql: str = field(metadata=opensearch_property_type_text)
@@ -76,7 +76,7 @@ def generate_ddl(db_name: str = "superhero") -> list[DDL]:
 
     ddl_embeddings = generate_embeddings(ddl_statements)
     output = [
-        DDL(ddl=ddl, ddl_emb=ddl_emb)
+        asdict(DDL(ddl=ddl, ddl_emb=ddl_emb))
         for ddl, ddl_emb in zip(ddl_statements, ddl_embeddings)
     ]
 
@@ -89,7 +89,7 @@ def generate_question_sql(db_name: str = "superhero") -> list[QuestionSQL]:
 
     db_data = [i for i in data if i["db_id"] == db_name]
     questions = [i["question"] for i in db_data]
-    sql_list = [i["sql"] for i in db_data]
+    sql_list = [i["SQL"] for i in db_data]
     question_emb_list = generate_embeddings(questions)
     sql_emb_list = generate_embeddings(sql_list)
 

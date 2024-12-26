@@ -1,12 +1,7 @@
 import hashlib
-import logging
-import uuid
-from typing import Any, Optional
 
 import pandas as pd
-from opensearchpy import Index, OpenSearch
-from streamlit.connections import BaseConnection
-from streamlit.runtime.caching import cache_data
+from opensearchpy import OpenSearch
 from utils.data_prep import DDL, Doc, QuestionSQL
 from utils.utils import extract_table_metadata
 from vanna.base import VannaBase
@@ -38,7 +33,7 @@ class OpenSearch_VectorStore(VannaBase):
 
         indices = [Doc, DDL, QuestionSQL]
         for index in indices:
-            if not self.opensearch_client.exists(index=index.opensearch_index_name):
+            if not self.opensearch_client.indices.exists(index=index.opensearch_index_name):
                 create_index(
                     client=self.opensearch_client,
                     index_name=index.opensearch_index_name,
@@ -53,7 +48,7 @@ class OpenSearch_VectorStore(VannaBase):
 
     def add_ddl(self, ddl_list: list[dict]) -> str:
         for ddl in ddl_list:
-            table_metadata = extract_table_metadata(ddl)
+            table_metadata = extract_table_metadata(ddl["ddl"])
             ddl.update(
                 {
                     "schema": table_metadata.schema,
@@ -87,20 +82,16 @@ class OpenSearch_VectorStore(VannaBase):
     def get_related_ddl(self, question: str) -> list[str]:
         # Assume you have some vector search mechanism associated with your data
         query = {"query": {"match": {"ddl": question}}, "size": self.n_results}
-        print(query)
         response = self.opensearch_client.search(index=self.ddl_index_name, body=query)
         return [hit["_source"]["ddl"] for hit in response["hits"]["hits"]]
 
     def get_related_documentation(self, question: str) -> list[str]:
         query = {"query": {"match": {"doc": question}}, "size": self.n_results}
-        print(query)
         response = self.opensearch_client.search(index=self.doc_index_name, body=query)
         return [hit["_source"]["doc"] for hit in response["hits"]["hits"]]
 
     def get_similar_question_sql(self, question: str) -> list[str]:
         query = {"query": {"match": {"question": question}}, "size": self.n_results}
-        print(query)
-        print(self.question_sql_index_name)
         response = self.opensearch_client.search(
             index=self.question_sql_index_name, body=query
         )
