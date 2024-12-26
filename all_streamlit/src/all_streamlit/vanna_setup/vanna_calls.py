@@ -15,11 +15,13 @@ class MyVanna(OpenSearch_VectorStore, Ollama):
         OpenSearch_VectorStore.__init__(self, config=config)
         Ollama.__init__(self, config=config)
 
+
 def prepare_data(vn: MyVanna):
     ddls = generate_ddl()
     vn.add_ddl(ddl_list=ddls)
     qn_sql_pairs = generate_question_sql()
     vn.add_question_sql(pairs=qn_sql_pairs)
+
 
 @st.cache_resource(ttl=3600)
 def setup_vanna():
@@ -59,7 +61,10 @@ def generate_questions_cached():
 @st.cache_data(show_spinner="Generating SQL query ...")
 def generate_sql_cached(question: str):
     vn = setup_vanna()
-    return vn.generate_sql(question=question, allow_llm_to_see_data=True)
+    question_emb = vn.generate_embedding(question)
+    return vn.generate_sql(
+        question=question, allow_llm_to_see_data=True, embeddings=question_emb
+    )
 
 
 @st.cache_data(show_spinner="Checking for valid SQL ...")

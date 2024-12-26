@@ -5,6 +5,8 @@ from opensearchpy import OpenSearch
 from utils.data_prep import DDL, Doc, QuestionSQL
 from utils.utils import extract_table_metadata
 from vanna.base import VannaBase
+from sentence_transformers import SentenceTransformer
+from typing import Any
 
 
 class OpenSearch_VectorStore(VannaBase):
@@ -30,10 +32,21 @@ class OpenSearch_VectorStore(VannaBase):
                 ssl_assert_hostname=False,
                 ssl_show_warn=False,
             )
+        embedding_func = config.get(
+            "embedding_func", "sentence-transformers/all-MiniLM-L6-v2"
+        )
+        if embedding_func == "sentence-transformers/all-MiniLM-L6-v2":
+            self.embedding_model = SentenceTransformer(
+                model_name_or_path="sentence-transformers/all-MiniLM-L6-v2"
+            )
+        else:
+            raise (f"Embedding Function: {embedding_func} Not Supported")
 
         indices = [Doc, DDL, QuestionSQL]
         for index in indices:
-            if not self.opensearch_client.indices.exists(index=index.opensearch_index_name):
+            if not self.opensearch_client.indices.exists(
+                index=index.opensearch_index_name
+            ):
                 create_index(
                     client=self.opensearch_client,
                     index_name=index.opensearch_index_name,
@@ -79,24 +92,50 @@ class OpenSearch_VectorStore(VannaBase):
         )
         return response
 
-    def get_related_ddl(self, question: str) -> list[str]:
+    def get_related_ddl(self, question: str, **kwargs: Any) -> list[str]:
         # Assume you have some vector search mechanism associated with your data
-        query = {"query": {"match": {"ddl": question}}, "size": self.n_results}
+        if "embeddings" in kwargs:
+            embeddings = kwargs.get("embeddings")
+        else:
+            raise Exception("Embeddings Not Provided")
+
+        query = {
+            "query": {"knn": {"ddl_emb": {"vector": embeddings, "k": self.n_results}}},
+            "_source": ["ddl"],
+        }
         response = self.opensearch_client.search(index=self.ddl_index_name, body=query)
         return [hit["_source"]["ddl"] for hit in response["hits"]["hits"]]
 
-    def get_related_documentation(self, question: str) -> list[str]:
-        query = {"query": {"match": {"doc": question}}, "size": self.n_results}
+    def get_related_documentation(self, question: str, **kwargs: Any) -> list[str]:
+        if "embeddings" in kwargs:
+            embeddings = kwargs.get("embeddings")
+        else:
+            raise Exception("Embeddings Not Provided")
+        query = {
+            "query": {"knn": {"doc_emb": {"vector": embeddings, "k": self.n_results}}},
+            "_source": ["doc"],
+        }
         response = self.opensearch_client.search(index=self.doc_index_name, body=query)
         return [hit["_source"]["doc"] for hit in response["hits"]["hits"]]
 
-    def get_similar_question_sql(self, question: str) -> list[str]:
-        query = {"query": {"match": {"question": question}}, "size": self.n_results}
+    def get_similar_question_sql(self, question: str, **kwargs: Any) -> list[str]:
+        if "embeddings" in kwargs:
+            embeddings = kwargs.get("embeddings")
+        else:
+            raise Exception("Embeddings Not Provided")
+        print("!!!!!!!!!!")
+        print(embeddings)
+        query = {
+            "query": {
+                "knn": {"question_emb": {"vector": embeddings, "k": self.n_results}}
+            },
+            "_source": ["question", "sql"],
+        }
         response = self.opensearch_client.search(
             index=self.question_sql_index_name, body=query
         )
         return [
-            (hit["_source"]["question"], hit["_source"]["sql"])
+            {"question": hit["_source"]["question"], "sql": hit["_source"]["sql"]}
             for hit in response["hits"]["hits"]
         ]
 
@@ -126,7 +165,7 @@ class OpenSearch_VectorStore(VannaBase):
 
         return pd.DataFrame(data)
 
-    def remove_training_data(self, index:str, id: str, **kwargs) -> bool:
+    def remove_training_data(self, index: str, id: str, **kwargs) -> bool:
         try:
             self.opensearch_client.delete(index=index, id=id)
             return True
@@ -135,8 +174,8 @@ class OpenSearch_VectorStore(VannaBase):
             return False
 
     def generate_embedding(self, data: str, **kwargs) -> list[float]:
-        # opensearch doesn't need to generate embeddings
-        pass
+        embeddings = self.embedding_model.encode(data).tolist()
+        return embeddings
 
 
 def index_dococument(client: OpenSearch, index_name: str, doc_list: list[dict]):
