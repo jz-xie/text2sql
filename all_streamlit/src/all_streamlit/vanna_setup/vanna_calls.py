@@ -1,9 +1,10 @@
 import streamlit as st
 from vanna.ollama import Ollama
 from vanna.chromadb import ChromaDB_VectorStore
-from vanna_setup.opensearch import OpenSearch_VectorStore
-from utils.data_prep import generate_question_sql, generate_ddl
+from all_streamlit.vanna_setup.vector_store import OpenSearch_VectorStore
 from opensearchpy import OpenSearch
+from all_streamlit.opensearch_tools import index_dococument
+from all_streamlit.data_prep import DDL, QuestionSQL, generate_embeddings, generate_question_sql, generate_ddl
 # class MyVanna(ChromaDB_VectorStore, Ollama):
 #     def __init__(self, config=None):
 #         ChromaDB_VectorStore.__init__(self, config=config)
@@ -15,13 +16,11 @@ class MyVanna(OpenSearch_VectorStore, Ollama):
         OpenSearch_VectorStore.__init__(self, config=config)
         Ollama.__init__(self, config=config)
 
-
-def prepare_data(vn: MyVanna):
+def prepare_data(client: OpenSearch, ddl_index_name:str, question_sql_index_name:str):
     ddls = generate_ddl()
-    vn.add_ddl(ddl_list=ddls)
+    index_dococument(client, ddl_index_name, ddls)
     qn_sql_pairs = generate_question_sql()
-    vn.add_question_sql(pairs=qn_sql_pairs)
-
+    index_dococument(client, question_sql_index_name, qn_sql_pairs)
 
 @st.cache_resource(ttl=3600)
 def setup_vanna():
@@ -41,7 +40,11 @@ def setup_vanna():
     vn = MyVanna(config={"model": "llama3.2:1b", "client": opensearch_client})
     # vn = VannaDefault(api_key=st.secrets.get("VANNA_API_KEY"), model='chinook')
     # vn.connect_to_sqlite("https://vanna.ai/Chinook.sqlite")
-    prepare_data(vn)
+    prepare_data(
+        client=opensearch_client,
+        ddl_index_name=DDL.opensearch_index_name,
+        question_sql_index_name=QuestionSQL.opensearch_index_name,
+    )
     vn.connect_to_postgres(
         host="localhost",
         dbname="BIRD",
@@ -61,7 +64,7 @@ def generate_questions_cached():
 @st.cache_data(show_spinner="Generating SQL query ...")
 def generate_sql_cached(question: str):
     vn = setup_vanna()
-    question_emb = vn.generate_embedding(question)
+    question_emb = generate_embeddings(question)
     return vn.generate_sql(
         question=question, allow_llm_to_see_data=True, embeddings=question_emb
     )

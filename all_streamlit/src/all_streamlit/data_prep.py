@@ -34,7 +34,7 @@ class QuestionSQL:
     question: str = field(metadata=opensearch_property_type_text)
     question_emb: Tensor = field(metadata=opensearch_property_type_vector)
     sql: str = field(metadata=opensearch_property_type_text)
-    sql_emb: Tensor = field(metadata=opensearch_property_type_vector)
+    # sql_emb: Tensor = field(metadata=opensearch_property_type_vector)
 
 
 def generate_ddl(db_name: str = "superhero") -> list[DDL]:
@@ -101,7 +101,7 @@ def generate_question_sql(db_name: str = "superhero") -> list[QuestionSQL]:
     return output
 
 
-def generate_embeddings(texts: list[str]) -> list:
+def generate_embeddings(texts: list[str]) -> list[float]:
     model = SentenceTransformer(
         model_name_or_path="sentence-transformers/all-MiniLM-L6-v2"
     )
