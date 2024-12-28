@@ -1,7 +1,7 @@
 from opensearchpy import OpenSearch
 import hashlib
 import pandas as pd
-from all_streamlit.data_prep import DDL, Doc, QuestionSQL
+from utils.data_prep import DDL, Doc, QuestionSQL
 
 
 def index_dococument(client: OpenSearch, index_name: str, doc_list: list[dict]):

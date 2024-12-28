@@ -91,11 +91,10 @@ def generate_question_sql(db_name: str = "superhero") -> list[QuestionSQL]:
     questions = [i["question"] for i in db_data]
     sql_list = [i["SQL"] for i in db_data]
     question_emb_list = generate_embeddings(questions)
-    sql_emb_list = generate_embeddings(sql_list)
 
     output = [
-        asdict(QuestionSQL(question=a, question_emb=b, sql=c, sql_emb=d))
-        for a, b, c, d in zip(questions, question_emb_list, sql_list, sql_emb_list)
+        asdict(QuestionSQL(question=a, question_emb=b, sql=c))
+        for a, b, c in zip(questions, question_emb_list, sql_list)
     ]
 
     return output

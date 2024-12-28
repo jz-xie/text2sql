@@ -5,7 +5,7 @@ from opensearchpy import OpenSearch
 from vanna.base import VannaBase
 from sentence_transformers import SentenceTransformer
 from typing import Any
-from all_streamlit.data_prep import DDL, Doc, QuestionSQL
+from utils.data_prep import DDL, Doc, QuestionSQL
 
 
 class OpenSearch_VectorStore(VannaBase):
