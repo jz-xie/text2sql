@@ -11,6 +11,8 @@ from utils.data_prep import (
     generate_question_sql,
     generate_ddl,
 )
+import pathlib
+
 # class MyVanna(ChromaDB_VectorStore, Ollama):
 #     def __init__(self, config=None):
 #         ChromaDB_VectorStore.__init__(self, config=config)
@@ -22,7 +24,7 @@ class MyVanna(OpenSearch_VectorStore, Ollama):
         OpenSearch_VectorStore.__init__(
             self, client=config["opensearch_client"], config=config
         )
-        Ollama.__init__(self, config=config)
+        Ollama.__init__(self, config={"model": "llama3.2:1b", "ollama_host": "http://localhost:11434"})
 
 
 def prepare_data(client: OpenSearch, ddl_index_name: str, question_sql_index_name: str):
@@ -48,7 +50,7 @@ def setup_vanna():
     )
     postgres_secrets = st.secrets["postgres"]
     vn = MyVanna(
-        config={"model": "llama3.2:1b", "opensearch_client": opensearch_client}
+        config={"opensearch_client": opensearch_client}
     )
     # vn = VannaDefault(api_key=st.secrets.get("VANNA_API_KEY"), model='chinook')
     # vn.connect_to_sqlite("https://vanna.ai/Chinook.sqlite")
@@ -57,13 +59,15 @@ def setup_vanna():
         ddl_index_name=DDL.opensearch_index_name,
         question_sql_index_name=QuestionSQL.opensearch_index_name,
     )
-    vn.connect_to_postgres(
-        host="localhost",
-        dbname="BIRD",
-        user=postgres_secrets["username"],
-        password=postgres_secrets["password"],
-        port=5432,
-    )
+    db_path = f"{pathlib.Path(__file__).parent}/../sample_data/superhero.sqlite"
+    vn.connect_to_sqlite(db_path)
+    # vn.connect_to_postgres(
+    #     host="localhost",
+    #     dbname="BIRD",
+    #     user=postgres_secrets["username"],
+    #     password=postgres_secrets["password"],
+    #     port=5432,
+    # )
     return vn
 
 
