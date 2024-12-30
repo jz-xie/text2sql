@@ -45,6 +45,8 @@ def prepare_index(client: OpenSearch):
                 index_name=index.opensearch_index_name,
                 index_target=index,
             )
+            print(f"New Index Created: {index.opensearch_index_name}")
+            print(client.indices.get_mapping(index.opensearch_index_name))
 
 
 def get_training_data(client: OpenSearch) -> pd.DataFrame:

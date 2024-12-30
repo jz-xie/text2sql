@@ -31,7 +31,6 @@ def prepare_data(client: OpenSearch, ddl_index_name: str, question_sql_index_nam
     ddls = generate_ddl()
     index_dococument(client, ddl_index_name, ddls)
     qn_sql_pairs = generate_question_sql()
-    print(qn_sql_pairs)
     index_dococument(client, question_sql_index_name, qn_sql_pairs)
 
 
