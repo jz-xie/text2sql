@@ -3,7 +3,7 @@ from vanna.ollama import Ollama
 from vanna.chromadb import ChromaDB_VectorStore
 from vanna_setup.vector_store import OpenSearch_VectorStore
 from opensearchpy import OpenSearch
-from utils.opensearch_tools import index_dococument
+from utils.opensearch_tools import index_dococument, prepare_index
 from utils.data_prep import (
     DDL,
     QuestionSQL,
@@ -27,9 +27,11 @@ class MyVanna(OpenSearch_VectorStore, Ollama):
 
 
 def prepare_data(client: OpenSearch, ddl_index_name: str, question_sql_index_name: str):
+    prepare_index(client)
     ddls = generate_ddl()
     index_dococument(client, ddl_index_name, ddls)
     qn_sql_pairs = generate_question_sql()
+    print(qn_sql_pairs)
     index_dococument(client, question_sql_index_name, qn_sql_pairs)
 
 
@@ -48,15 +50,14 @@ def setup_vanna():
         ssl_assert_hostname=False,
         ssl_show_warn=False,
     )
-    vn = MyVanna(
-        config={"opensearch_client": opensearch_client}
-    )
-    # vn = VannaDefault(api_key=st.secrets.get("VANNA_API_KEY"), model='chinook')
-    # vn.connect_to_sqlite("https://vanna.ai/Chinook.sqlite")
+
     prepare_data(
         client=opensearch_client,
         ddl_index_name=DDL.opensearch_index_name,
         question_sql_index_name=QuestionSQL.opensearch_index_name,
+    )
+    vn = MyVanna(
+        config={"opensearch_client": opensearch_client}
     )
     db_path = f"{pathlib.Path(__file__).parent}/../sample_data/superhero.sqlite"
     vn.connect_to_sqlite(db_path)

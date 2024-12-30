@@ -36,7 +36,7 @@ def create_index(client: OpenSearch, index_name: str, index_target):
     return response
 
 
-def prepare(client: OpenSearch):
+def prepare_index(client: OpenSearch):
     indices = [Doc, DDL, QuestionSQL]
     for index in indices:
         if not client.indices.exists(index=index.opensearch_index_name):
