@@ -18,7 +18,10 @@ services:
         soft: 65536 # Maximum number of open files for the opensearch user - set to at least 65536
         hard: 65536
     volumes:
-      - opensearch-data1:/usr/share/opensearch/data # Creates volume called opensearch-data1 and mounts it to the container
+      - type: volume
+        source: opensearch-data1
+        target: /usr/share/opensearch/data
+      # - opensearch-data1:/usr/share/opensearch/data # Creates volume called opensearch-data1 and mounts it to the container
     ports:
       - 9200:9200 # REST API
       - 9600:9600 # Performance Analyzer
@@ -66,6 +69,8 @@ services:
     networks:
       - text2sql
 
+volumes:
+  opensearch-data1:
+
 networks:
   text2sql:
-  

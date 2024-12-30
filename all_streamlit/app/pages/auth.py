@@ -2,12 +2,15 @@ import streamlit as st
 import httpx
 import urllib
 from utils.navigation import make_sidebar
+from config import settings
 
 def login():
+    oauth_settings = settings.oauth
+    
     param = {
         "response_type": "code",
-        "client_id": st.secrets["auth_client_id"],
-        "redirect_uri":  st.secrets["auth_redirect_uri"]
+        "client_id": oauth_settings.client_id,
+        "redirect_uri":  oauth_settings.redirect_uri
         }
     auth_link = f"{auth_url}?{urllib.parse.urlencode(param)}"
     st.markdown(
@@ -19,7 +22,7 @@ def login():
         code = st.query_params["code"]
         param.update({
             "grant_type": "authorization_code",
-            "client_secret": st.secrets["auth_client_secret"],
+            "client_secret": oauth_settings.client_secret,
             "code": code
             
         })

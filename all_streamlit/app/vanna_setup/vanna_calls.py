@@ -12,19 +12,18 @@ from utils.data_prep import (
     generate_ddl,
 )
 import pathlib
-
+from config import settings
 # class MyVanna(ChromaDB_VectorStore, Ollama):
 #     def __init__(self, config=None):
 #         ChromaDB_VectorStore.__init__(self, config=config)
 #         Ollama.__init__(self, config=config)
-
 
 class MyVanna(OpenSearch_VectorStore, Ollama):
     def __init__(self, config=None):
         OpenSearch_VectorStore.__init__(
             self, client=config["opensearch_client"], config=config
         )
-        Ollama.__init__(self, config={"model": "llama3.2:1b", "ollama_host": "http://localhost:11434"})
+        Ollama.__init__(self, config={"model": "llama3.2:1b", "ollama_host": settings.ollama.host})
 
 
 def prepare_data(client: OpenSearch, ddl_index_name: str, question_sql_index_name: str):
@@ -36,19 +35,19 @@ def prepare_data(client: OpenSearch, ddl_index_name: str, question_sql_index_nam
 
 @st.cache_resource(ttl=3600)
 def setup_vanna():
-    open_search_secrets = st.secrets["opensearch"]
+    # open_search_secrets = st.secrets["opensearch"]
+    opensearch_setting = settings.opensearch
     opensearch_client = OpenSearch(
         hosts=[
-            {"host": open_search_secrets["host"], "port": open_search_secrets["port"]}
+            {"host": opensearch_setting.host, "port": opensearch_setting.port}
         ],
-        http_auth=(open_search_secrets["user"], open_search_secrets["password"]),
+        http_auth=(opensearch_setting.user, opensearch_setting.password.get_secret_value()),
         http_compress=True,  # enables gzip compression for request bodies
         use_ssl=True,
         verify_certs=False,
         ssl_assert_hostname=False,
         ssl_show_warn=False,
     )
-    postgres_secrets = st.secrets["postgres"]
     vn = MyVanna(
         config={"opensearch_client": opensearch_client}
     )
@@ -61,13 +60,6 @@ def setup_vanna():
     )
     db_path = f"{pathlib.Path(__file__).parent}/../sample_data/superhero.sqlite"
     vn.connect_to_sqlite(db_path)
-    # vn.connect_to_postgres(
-    #     host="localhost",
-    #     dbname="BIRD",
-    #     user=postgres_secrets["username"],
-    #     password=postgres_secrets["password"],
-    #     port=5432,
-    # )
     return vn
 
 
