@@ -39,7 +39,9 @@ services:
     networks:
       - text2sql
   app:
-    image: streamlit:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: text2sql
     environment:
       - OLLAMA_HOST=ollama
