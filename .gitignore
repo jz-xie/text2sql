@@ -163,6 +163,6 @@ cython_debug/
 
 *.streamlit
 *.sqlite3
-*.DS_Store
+.DS_Store
 */ollama
 
