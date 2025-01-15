@@ -1,5 +1,6 @@
-import streamlit as st
 from time import sleep
+
+import streamlit as st
 from streamlit.runtime.scriptrunner import get_script_run_ctx
 from streamlit.source_util import get_pages
 
@@ -12,7 +13,6 @@ def get_current_page_name():
     pages = get_pages("")
 
     return pages[ctx.page_script_hash]["page_name"]
-
 
 def make_sidebar():
     with st.sidebar:

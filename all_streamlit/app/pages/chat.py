@@ -1,21 +1,20 @@
 import logging
+
 import streamlit as st
+from utils.processors import Message
 from vanna_setup.vanna_calls import (
-    generate_questions_cached,
     generate_sql_cached,
-    run_sql_cached,
-    generate_plotly_code_cached,
-    generate_plot_cached,
-    generate_followup_cached,
-    should_generate_chart_cached,
     is_sql_valid_cached,
-    generate_summary_cached
+    run_sql_cached,
 )
 
 avatar_url = "https://vanna.ai/img/vanna.svg"
+
+
 def clear_messages():
     st.session_state.messages = []
-    
+
+
 st.set_page_config(layout="wide")
 st.title("Text to SQL")
 st.sidebar.button("Reset", on_click=clear_messages, use_container_width=True)
@@ -27,12 +26,10 @@ st.sidebar.button("Reset", on_click=clear_messages, use_container_width=True)
 # st.sidebar.checkbox("Show Summary", value=True, key="show_summary")
 # st.sidebar.checkbox("Show Follow-up Questions", value=True, key="show_followup")
 
+
 def set_question(question):
     st.session_state["my_question"] = question
 
-
-# assistant_message_suggested = st.chat_message(
-#     "assistant"
 # )
 # if assistant_message_suggested.button("Click to show suggested questions"):
 #     st.session_state["my_question"] = None
@@ -45,39 +42,30 @@ def set_question(question):
 #             args=(question,),
 #         )
 
-def answer_question(question: str):
 
+def answer_question(question: str):
     sql = generate_sql_cached(question=question)
 
-    if not is_sql_valid_cached(sql=sql):
-        content = [
-            {"type": "error", "value": "SQL is invalid"},
-            {"type": "sql", "value": sql}
-        ]
-    else:
-        df = run_sql_cached(sql=sql)
-        content = [
-            {"type": "sql", "value": sql},
-            {"type": "df", "value": df}
-        ]
+    message = Message(role="assistant", sql=sql)
 
-    message = {"role": "assistant", "content": content}
-    st.session_state.messages.append(message)
+    if not is_sql_valid_cached(sql=sql):
+        message.error = "SQL is invalid"
+    else:
+        message.df = run_sql_cached(sql=sql)
 
     return message
 
-def display_message(message: dict):
-    with st.chat_message(message["role"]):
-        for i in message["content"]:
-            match i["type"]:
-                case "error":
-                    st.error(i["value"])
-                case "text":
-                    st.markdown(i["value"])
-                case "sql":
-                    st.code(i["value"], language="sql", line_numbers=True)
-                case "df":
-                    st.dataframe(i["value"])
+
+def display_message(message: Message):
+    with st.chat_message(message.role):
+        if message.error:
+            st.error(message.error)
+        if message.text:
+            st.markdown(message.text)
+        if message.sql:
+            st.code(message.sql, language="sql", line_numbers=True)
+        if message.df:
+            st.dataframe(message.df)                    
 
 
 # Initialize chat history
@@ -94,9 +82,11 @@ if question := st.chat_input("Ask me a question about your data"):
     # Display user message in chat message container
     st.chat_message("user").markdown(question)
     # Add user message to chat history
-    st.session_state.messages.append({"role": "user", "content": [{"type": "text", "value":question}]})
+    question = Message(role="user", text=question)
+    st.session_state.messages.append(question)
 
     answer = answer_question(question=question)
+    st.session_state.messages.append(answer)
     display_message(answer)
 
 
@@ -204,4 +194,3 @@ if question := st.chat_input("Ask me a question about your data"):
 #             "assistant", avatar=avatar_url
 #         )
 #         assistant_message_error.error("I wasn't able to generate SQL for that question")
-
