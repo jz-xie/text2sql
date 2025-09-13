@@ -31,7 +31,7 @@ def convert_slack_messages_to_model_messages(
     Convert a list of Slack messages into a format compatible with pydantic-ai's message history.
     Each user message becomes a ModelRequest, and each bot message becomes a ModelResponse.
     """
-    model_messages = []
+    model_messages: list[ModelRequest | ModelResponse] = []
 
     for message in slack_messages:
         timestamp = datetime.fromtimestamp(

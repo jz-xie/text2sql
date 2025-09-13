@@ -3,7 +3,7 @@ from typing import Optional
 
 from openai import AsyncAzureOpenAI
 from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from config import settings
@@ -47,13 +47,13 @@ async def get_agent(bot_user_id: str) -> Agent:
             api_key=settings.openai.api_key,
             azure_deployment=settings.openai.azure_deployment,
         )
-        model = OpenAIModel(
+        model = OpenAIChatModel(
             "gpt-4o",
             provider=OpenAIProvider(openai_client=client),
         )
 
     else:
-        model = OpenAIModel(
+        model = OpenAIChatModel(
             model_name="llama3.2",
             provider=OpenAIProvider(
                 base_url="http://localhost:11434/v1"
